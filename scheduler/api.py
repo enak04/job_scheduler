@@ -1,5 +1,6 @@
 """HTTP API for jobs. Start with: uvicorn scheduler.api:app --reload"""
 
+from datetime import datetime
 from typing import Any, Optional
 
 import psycopg
@@ -22,7 +23,27 @@ class JobCreate(BaseModel):
     max_attempts: int = Field(default=5, ge=1)
 
 
-@app.post("/jobs", status_code=201)
+class JobCreated(BaseModel):
+    id: int
+
+
+class JobResponse(BaseModel):
+    id: int
+    status: str
+    job_type: str
+    payload: dict[str, Any]
+    priority: int
+    run_at: datetime
+    attempts: int
+    max_attempts: int
+    lease_owner: Optional[str]
+    lease_expires_at: Optional[datetime]
+    last_error: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+@app.post("/jobs", status_code=201, response_model=JobCreated)
 def create_job(job: JobCreate):
     try:
         get_handler(job.job_type)
@@ -48,7 +69,7 @@ def create_job(job: JobCreate):
     return {"id": job_id}
 
 
-@app.get("/jobs/{job_id}")
+@app.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: int):
     with psycopg.connect(DSN, row_factory=dict_row) as conn:
         job = conn.execute(

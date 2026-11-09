@@ -10,6 +10,34 @@ services:
       -  pgdata:/var/lib/postgresql/data
       -  ./db:/docker-entrypoint-initdb.d
     restart: unless-stopped
+    healthcheck:
+      # -h forces TCP, which is only open once database setup has finished
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "127.0.0.1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build: .
+    command: uvicorn scheduler.api:app --host 0.0.0.0 --port 8000
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: python -m scheduler.worker
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:

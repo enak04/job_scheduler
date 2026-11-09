@@ -1,5 +1,7 @@
 """Runs jobs from the jobs table. Start with: python -m scheduler.worker"""
 
+import os
+import socket
 import time
 
 import psycopg
@@ -55,7 +57,7 @@ def finish_job(conn, job_id):
     return cur.rowcount == 1
 
 
-def run_once(conn):
+def run_once(conn, worker_id):
     """Try to run one job. Returns False if there was nothing to pick."""
     job = pick_next_job(conn)
     if job is None:
@@ -64,31 +66,38 @@ def run_once(conn):
     job_id, job_type, payload = job
 
     if not claim_job(conn, job_id):
-        print(f"job {job_id}: another worker claimed it first")
+        print(f"[{worker_id}] job {job_id}: another worker claimed it first")
         return True
 
-    print(f"job {job_id}: running {job_type}")
-    handler = get_handler(job_type) 
-    handler(payload)
+    print(f"[{worker_id}] job {job_id}: running {job_type}")
+    try:
+        handler = get_handler(job_type)
+        handler(payload)
+    except Exception as exc:
+        # For now the error is only logged, so the job stays RUNNING.
+        # Milestone 4 turns this into a retry or DEAD.
+        print(f"[{worker_id}] job {job_id}: failed: {exc!r}")
+        return True
 
     if finish_job(conn, job_id):
-        print(f"job {job_id}: succeeded")
+        print(f"[{worker_id}] job {job_id}: succeeded")
     else:
-        print(f"job {job_id}: could not be marked finished")
+        print(f"[{worker_id}] job {job_id}: could not be marked finished")
     return True
 
 
 def main():
+    worker_id = f"{socket.gethostname()}-{os.getpid()}"
     # autocommit: each statement is saved immediately, so other connections
     # see RUNNING while the job is still being worked on.
     with psycopg.connect(DSN, autocommit=True) as conn:
-        print("worker started")
+        print(f"[{worker_id}] worker started")
         try:
             while True:
-                if not run_once(conn):
+                if not run_once(conn, worker_id):
                     time.sleep(POLL_INTERVAL_SECONDS)
         except KeyboardInterrupt:
-            print("worker stopped")
+            print(f"[{worker_id}] worker stopped")
 
 
 if __name__ == "__main__":

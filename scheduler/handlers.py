@@ -1,5 +1,6 @@
 """Maps each job_type to the Python function that runs it."""
 
+import time
 from typing import Any, Callable
 
 Payload = dict[str, Any]
@@ -37,7 +38,20 @@ def echo(payload: Payload) -> None:
     print(f"echo: {payload}")
 
 
+# The handlers below are fake: they sleep to simulate slow work.
 @handler("send_email")
 def send_email(payload: Payload) -> None:
-    # A stand-in until there is a real email service to call.
+    time.sleep(1)
     print(f"pretending to email {payload['to']}")
+
+
+@handler("resize_image")
+def resize_image(payload: Payload) -> None:
+    time.sleep(2)
+    print(f"pretending to resize {payload['file']}")
+
+
+@handler("generate_report")
+def generate_report(payload: Payload) -> None:
+    time.sleep(3)
+    print(f"pretending to generate report {payload['name']}")
