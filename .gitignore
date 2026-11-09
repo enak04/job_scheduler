@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+learning/
+CLAUDE.md
+PROJECT_HANDOFF.md
+PROJECT_PROGRESS.md
